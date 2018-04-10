@@ -70,6 +70,7 @@ def cbhg(inputs, input_lengths, is_training,
                 cell_fw, cell_bw,
                 rnn_input,
                 sequence_length=input_lengths,
+                swap_memory=True,
                 dtype=tf.float32)
         return tf.concat(outputs, axis=2)    # Concat forward and backward
 

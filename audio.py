@@ -14,6 +14,11 @@ def spectrogram(hyperparams, audio):
     spectra = stft(preemp, n_fft, hop_length, win_length)
     mag = tf.abs(spectra)
     
+    # Pad to 4-frame boundary
+    r = hyperparams.reduction_factor
+    r = r - tf.shape(mag)[0] % r
+    mag = tf.pad(mag, [[0, r], [0, 0]])
+    
     # Linear spectrum
     linear = amp_to_db(mag) - hyperparams.ref_level_db
     linear = normalize(linear, hyperparams.min_level_db)

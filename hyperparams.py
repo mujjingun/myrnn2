@@ -49,11 +49,13 @@ hyperparams = {
     
     # Training
     'dataset_path': "../../WEB/",
-    'shuffle_size': 1000,
-    'batch_size': 16,
+    'shuffle_size': 128,
+    'prefetch_size': 128,
+    'validation_batch_size': 16,
+    'validate_every_n_steps': 100,
+    'batch_size': 4,
     'adam_beta1': 0.9,
     'adam_beta2': 0.999,
-    'use_fixed_test_inputs': False,
 
     'initial_learning_rate': 0.002,
     

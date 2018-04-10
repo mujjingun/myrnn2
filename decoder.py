@@ -47,16 +47,19 @@ class Decoder:
         if is_training:
             helper = modules.TacoTrainingHelper(
                     mel_targets, hyperparams.num_mels, hyperparams.reduction_factor)
+            max_iters = None
         else:
             helper = modules.TacoTestHelper(
                     batch_size, hyperparams.num_mels, hyperparams.reduction_factor)
+            max_iters = hyperparams.max_iters
 
         decoder_init_state = output_cell.zero_state(batch_size=batch_size, dtype=tf.float32)
         
         (decoder_outputs, _), self.final_decoder_state, _ = \
                 tf.contrib.seq2seq.dynamic_decode(
                         tf.contrib.seq2seq.BasicDecoder(output_cell, helper, decoder_init_state),
-                        maximum_iterations=hyperparams.max_iters)
+                        maximum_iterations=max_iters,
+                        swap_memory=True)
         
         # [N, T_out, M]
         self.mel_outputs = tf.reshape(
