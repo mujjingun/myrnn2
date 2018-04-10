@@ -35,10 +35,10 @@ class Model:
                 self.loss = self.linear_loss + self.mel_loss
 
             with tf.variable_scope('optimizer') as scope:
-                global_step = tf.get_variable("global_step", shape=[], trainable=False,
+                self.global_step = tf.get_variable("global_step", shape=[], trainable=False,
                               initializer=tf.zeros_initializer, dtype=tf.int32)
                 
-                step = tf.cast(global_step + 1, dtype=tf.float32)
+                step = tf.cast(self.global_step + 1, dtype=tf.float32)
 
                 self.learning_rate = hyperparams.initial_learning_rate * \
                             tf.train.exponential_decay(1., step, 3000, 0.95)
@@ -57,5 +57,5 @@ class Model:
                 # https://github.com/tensorflow/tensorflow/issues/1122
                 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS) + [update_total_length]):
                     self.optimize = optimizer.apply_gradients(zip(clipped_gradients, variables),
-                        global_step=global_step)
+                        global_step=self.global_step)
                     
