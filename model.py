@@ -25,7 +25,7 @@ class Model:
             mel_targets)
     
         if is_training:
-            with tf.variable_scope('loss') as scope:
+            with tf.variable_scope('loss'):
                 mel_loss = tf.abs(mel_targets - self.decoder.mel_outputs)
 
                 l1 = tf.abs(linear_targets - self.decoder.linear_outputs)
@@ -34,7 +34,7 @@ class Model:
                 self.mel_loss = tf.reduce_mean(mel_loss)
                 self.loss = self.linear_loss + self.mel_loss
 
-            with tf.variable_scope('optimizer') as scope:
+            with tf.variable_scope('optimizer'):
                 self.global_step = tf.get_variable("global_step", shape=[], trainable=False,
                               initializer=tf.zeros_initializer, dtype=tf.int32)
                 

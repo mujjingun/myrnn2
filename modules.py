@@ -5,8 +5,15 @@ def prenet(inputs, is_training, layer_sizes, drop_prob, scope=None):
     drop_rate = drop_prob if is_training else 0.0
     with tf.variable_scope(scope or 'prenet'):
         for i, size in enumerate(layer_sizes):
-            dense = tf.layers.dense(x, units=size, activation=tf.nn.relu, name='dense_%d' % (i+1))
-            x = tf.layers.dropout(dense, rate=drop_rate, name='dropout_%d' % (i+1))
+            dense = tf.layers.dense(
+                x, 
+                units=size, 
+                activation=tf.nn.relu,
+                name='dense_{}'.format(i))
+            x = tf.layers.dropout(
+                dense,
+                rate=drop_rate, 
+                name='dropout_{}'.format(i))
     return x
 
 def conv1d(inputs, kernel_size, channels, activation, is_training, scope):
@@ -31,7 +38,7 @@ def cbhg(inputs, input_lengths, is_training,
             # to stack channels from all convolutions
             conv_fn = lambda k: \
                     conv1d(inputs, k, bank_channel_size, 
-                            tf.nn.relu, is_training, 'conv1d_%d' % k)
+                            tf.nn.relu, is_training, 'conv1d_{}'.format(k))
 
             conv_outputs = tf.concat(
                 [conv_fn(k) for k in range(1, bank_size + 1)], axis=-1,
@@ -50,7 +57,7 @@ def cbhg(inputs, input_lengths, is_training,
             activation_fn = None if idx == len(proj_sizes) - 1 else tf.nn.relu
             proj_out = conv1d(
                     proj_out, proj_width, proj_size, activation_fn,
-                    is_training, 'proj_{}'.format(idx + 1))
+                    is_training, 'proj_{}'.format(idx))
 
         # Residual connection:
         highway_input = proj_out + inputs
@@ -61,7 +68,7 @@ def cbhg(inputs, input_lengths, is_training,
 
         # 4-layer HighwayNet:
         for idx in range(highway_depth):
-            highway_input = highwaynet(highway_input, 'highway_%d' % (idx+1))
+            highway_input = highwaynet(highway_input, 'highway_{}'.format(idx))
 
         rnn_input = highway_input
 
@@ -151,9 +158,10 @@ class ConcatOutputAndAttentionWrapper(tf.contrib.rnn.RNNCell):
 
 # Adapted from tf.contrib.seq2seq.GreedyEmbeddingHelper
 class TacoTestHelper(tf.contrib.seq2seq.Helper):
-    def __init__(self, batch_size, output_dim, r):
+    def __init__(self, batch_size, decoder_proj_weights, output_dim, r):
         with tf.name_scope('TacoTestHelper'):
             self._batch_size = batch_size
+            self._decoder_proj_weights = decoder_proj_weights
             self._output_dim = output_dim
             self._end_token = tf.tile([0.0], [output_dim * r])
 
@@ -178,11 +186,16 @@ class TacoTestHelper(tf.contrib.seq2seq.Helper):
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         '''Stop on EOS. Otherwise, pass the last output as the next input and pass through state.'''
         with tf.name_scope('TacoTestHelper'):
+            outputs = tf.matmul(outputs, self._decoder_proj_weights)
             finished = tf.reduce_all(tf.equal(outputs, self._end_token), axis=1)
+            
             # Feed last output frame as next input. outputs is [N, output_dim * r]
             next_inputs = outputs[:, -self._output_dim:]
             return (finished, next_inputs, state)
 
+def go_frames(batch_size, output_dim):
+  '''Returns all-zero <GO> frames for a given batch size and output dimension'''
+  return tf.tile([[0.0]], [batch_size, output_dim])
 
 class TacoTrainingHelper(tf.contrib.seq2seq.Helper):
     def __init__(self, targets, output_dim, r):
@@ -192,7 +205,7 @@ class TacoTrainingHelper(tf.contrib.seq2seq.Helper):
             self._output_dim = output_dim
 
             # Feed every r-th target frame as input
-            self._targets = targets[:, r-1::r, :]
+            self._targets = targets[:, r-1::r]
 
             # Use full length for every target because we don't want to mask the padding frames
             num_steps = tf.shape(self._targets)[1]
@@ -219,9 +232,5 @@ class TacoTrainingHelper(tf.contrib.seq2seq.Helper):
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         with tf.name_scope(name or 'TacoTrainingHelper'):
             finished = (time + 1 >= self._lengths)
-            next_inputs = self._targets[:, time, :]
+            next_inputs = self._targets[:, time]
             return (finished, next_inputs, state)
-
-def go_frames(batch_size, output_dim):
-  '''Returns all-zero <GO> frames for a given batch size and output dimension'''
-  return tf.tile([[0.0]], [batch_size, output_dim])
