@@ -1,6 +1,7 @@
 import tensorflow as tf
 import model
 import audio
+import text
 from hyperparams import hyperparams
 import matplotlib.pyplot as plt
 
@@ -27,7 +28,7 @@ def synth():
 
         while True:
             sentence = input('Input: ')
-            tokens = ["? abcdefghijklmnopqrstuvwxyz".index(ch) for ch in sentence] + [0]
+            tokens = text.encode(sentence)
             spectrum = sess.run(spectrum_op, {tokens_ph: tokens})
             plt.imshow(spectrum[0])
             plt.show()

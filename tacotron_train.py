@@ -1,56 +1,50 @@
 import tensorflow as tf
+import numpy as np
 import model
 import audio
+import text
 from hyperparams import hyperparams
 
 import os, time
 
 def parse_line(line):
-    with tf.device('/cpu:0'):
-        # Parse line from csv
-        filename, sentence, duration = tf.decode_csv(
-            line,
-            record_defaults=[tf.constant([], dtype=tf.string), tf.constant([], dtype=tf.string), []],
-            field_delim=',')
+    # Parse line from csv
+    filename, sentence, duration = line.decode('ascii').split('\t')
 
-        # Audio file
-        wav_path = tf.string_join([hyperparams.dataset_path, "/", filename])
-        wav_binary = tf.read_file(wav_path)
-        wave = tf.contrib.ffmpeg.decode_audio(
-            wav_binary,
-            file_format='wav',
-            channel_count=1,
-            samples_per_second=hyperparams.sample_rate)[:, 0] # first channel
-        audio_length = tf.cast(tf.shape(wave)[0], tf.float32) / hyperparams.sample_rate
+    # Audio file
+    wav_path = os.path.join(hyperparams.dataset_path, filename + '.wav')
+    wave = audio.read_audio(wav_path, hyperparams.sample_rate)
+    audio_length = wave.shape[0] / hyperparams.sample_rate
 
-        # Calculate spectrum
-        mel, linear = audio.spectrogram(hyperparams, wave)
+    # Calculate spectrum
+    mel, linear = audio.spectrogram(hyperparams, wave)
 
-        # Encode sentence
-        tokens = tf.cast(tf.decode_raw(sentence, tf.int8), tf.int32)
-        tokens = tf.nn.relu(tokens - 96) + 1 # EOS = 0, ' ' = 1, 'a' = 2, 'b' = 3, ...
-        tokens = tf.concat([tokens, [0]], axis=0) # Append EOS symbol
+    # Encode sentence
+    tokens = text.encode(sentence)
 
-        return mel, linear, tokens, tf.shape(tokens)[0], audio_length
+    return mel.T, linear.T, tokens, np.int32(tokens.size), np.float32(audio_length)
 
 def train():
     # Read file
-    transcript = os.path.join(hyperparams.dataset_path, 'alignment.csv')
+    transcript = os.path.join(hyperparams.dataset_path, 'transcript.txt')
     lines = tf.data.TextLineDataset(transcript)
 
     # Datasets
     data_shapes = ([None, hyperparams.num_mels], [None, hyperparams.num_freq], [None], [], [])
 
-    validation_dataset = lines.map(parse_line).take(hyperparams.validation_batch_size) \
-        .repeat().padded_batch(
+    map_func = lambda line: tf.py_func(parse_line, [line], [tf.float32, tf.float32, tf.int32, tf.int32, tf.float32])
+
+    validation_dataset = lines.map(map_func) \
+        .padded_batch(
             hyperparams.validation_batch_size,
             data_shapes
-        )
+        ).take(1).repeat()
     validation_iter_handle_op = validation_dataset.make_one_shot_iterator().string_handle()
 
     training_dataset = lines.prefetch(hyperparams.prefetch_size) \
-        .map(parse_line) \
+        .shuffle(hyperparams.shuffle_size) \
         .repeat() \
+        .map(map_func) \
         .padded_batch(
             hyperparams.batch_size,
             data_shapes

@@ -1,4 +1,3 @@
-import tensorflow as tf
 import numpy as np
 import librosa
 import scipy
@@ -13,12 +12,11 @@ def spectrogram(hyperparams, audio):
     # Obtain STFT spectra
     n_fft, hop_length, win_length = get_stft_params(hyperparams)
     spectra = stft(preemp, n_fft, hop_length, win_length)
-    mag = tf.abs(spectra)
+    mag = np.abs(spectra)
 
-    # Pad to 4-frame boundary
-    r = hyperparams.reduction_factor
-    r = r - tf.shape(mag)[0] % r
-    mag = tf.pad(mag, [[0, r], [0, 0]])
+    # Truncate to 4-frame boundary
+    l = mag.shape[1] - mag.shape[1] % hyperparams.reduction_factor
+    mag = mag[:, :l]
 
     # Linear spectrum
     linear = amp_to_db(mag) - hyperparams.ref_level_db
@@ -31,22 +29,28 @@ def spectrogram(hyperparams, audio):
     return mel, linear
 
 mel_basis = None
-def linear_to_mel(spectrogram, n_fft, sample_rate, num_mels):
+def get_mel_basis(n_fft, sample_rate, num_mels):
     global mel_basis
     if mel_basis is None:
-        mel_basis = build_mel_basis(n_fft, sample_rate, num_mels)
-        mel_basis = tf.constant(np.transpose(mel_basis), dtype=tf.float32)
-    return tf.matmul(spectrogram, mel_basis)
-
-def build_mel_basis(n_fft, sample_rate, num_mels):
-    mel_basis = librosa.filters.mel(sample_rate, n_fft, n_mels=num_mels)
+        mel_basis = librosa.filters.mel(sample_rate, n_fft, n_mels=num_mels).astype(np.float32)
     return mel_basis
 
+def linear_to_mel(spectrogram, n_fft, sample_rate, num_mels):
+    mel_basis = get_mel_basis(n_fft, sample_rate, num_mels)
+    return np.dot(mel_basis, spectrogram)
+
+inv_mel_basis = None
+def mel_to_linear(mel_spectrogram, n_fft, sample_rate, num_mels):
+    global inv_mel_basis
+    if inv_mel_basis is None:
+        inv_mel_basis = np.linalg.pinv(get_mel_basis(n_fft, sample_rate, num_mels))
+    return np.maximum(1e-10, np.dot(inv_mel_basis, mel_spectrogram))
+
 def normalize(x, min_level):
-    return tf.clip_by_value((x - min_level) / -min_level, 0, 1)
+    return np.clip((x - min_level) / -min_level, 0, 1)
 
 def amp_to_db(x):
-    return 20 * tf.log(tf.maximum(1e-5, x)) / 2.302585
+    return 20 * np.log10(np.maximum(1e-5, x))
 
 def get_stft_params(hyperparams):
     n_fft = (hyperparams.num_freq - 1) * 2
@@ -55,20 +59,16 @@ def get_stft_params(hyperparams):
     return n_fft, hop_length, win_length
 
 def stft(x, n_fft, hop_length, win_length):
-    return tf.contrib.signal.stft(
-        x,
-        frame_length=win_length,
-        frame_step=hop_length,
-        fft_length=n_fft,
-        pad_end=False)
-
-def istft(x, n_fft, hop_length, win_length):
-    return tf.contrib.signal.inverse_stft(x, win_length, hop_length, n_fft)
+    return librosa.stft(
+        y=x,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        win_length=win_length)
 
 def preemphasis(x, coeff):
     return x[1:] - coeff * x[:-1]
 
-def reconstruct(hyperparams, spectrogram):
+def reconstruct(hyperparams, spectrogram, from_mel=False):
     n_fft, hop_length, win_length = get_stft_params(hyperparams)
 
     def stft(y):
@@ -86,12 +86,15 @@ def reconstruct(hyperparams, spectrogram):
     def denormalize(S):
         return (np.clip(S, 0, 1) * -hyperparams.min_level_db) + hyperparams.min_level_db
 
-    # Convert back to linear
-    S = db_to_amp(denormalize(spectrogram) + hyperparams.ref_level_db)
+    if from_mel:
+        S = db_to_amp(denormalize(spectrogram))
+        S = mel_to_linear(S, n_fft, hyperparams.sample_rate, hyperparams.num_mels)
+    else:
+        S = db_to_amp(denormalize(spectrogram) + hyperparams.ref_level_db)
+
     S = S ** hyperparams.power
 
     # Reconstruct phase (Griffin-Lim reconstruction)
-    S = S.transpose()
     angles = np.exp(2j * np.pi * np.random.rand(*S.shape))
     S_complex = np.abs(S).astype(np.complex)
 
@@ -102,6 +105,10 @@ def reconstruct(hyperparams, spectrogram):
 
     # unapply preemphasis
     return inv_preemphasis(y)
+
+def read_audio(path, sr):
+    wav, _ = librosa.load(path, sr=sr, mono=True)
+    return wav
 
 # Write audio to file
 def write_audio(path, y, sr):

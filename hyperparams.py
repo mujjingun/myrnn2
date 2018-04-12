@@ -68,7 +68,7 @@ hyperparams = {
     'min_iters': 30,
     'max_iters': 200,
     'griffin_lim_iters': 60,
-    'power': 1.5, # Power to raise magnitudes to prior to Griffin-Lim
+    'power': 1.2, # Power to raise magnitudes to prior to Griffin-Lim
 }
 
 hyperparams = tf.contrib.training.HParams(**hyperparams)
