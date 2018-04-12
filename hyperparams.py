@@ -7,7 +7,7 @@ hyperparams = {
 
     # Training
     'dataset_path': "../../WEB/",
-    'shuffle_size': 128,
+    'shuffle_size': 1024,
     'prefetch_size': 128,
     'validation_batch_size': 16,
     'validate_every_n_steps': 100,
