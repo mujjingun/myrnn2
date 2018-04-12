@@ -3,6 +3,7 @@ import tensorflow as tf
 hyperparams = {
     # Save/Restore model
     'save_path': '../models/tacotron',
+    'summary_path': "../summary/tacotron",
 
     # Training
     'dataset_path': "../../WEB/",
@@ -24,6 +25,7 @@ hyperparams = {
     "ref_level_db": 20,
     "num_freq": 1025,   # for linear output
     "num_mels": 80,     # for mel-frequency output
+    "max_audio_length": 120000, # cut off audio at 10 sec
 
     # String
     "num_symbols": 30,

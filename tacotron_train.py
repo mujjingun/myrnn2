@@ -75,13 +75,15 @@ def train():
         audio_lengths=audio_lengths_op)
 
     config = tf.ConfigProto(
-        allow_soft_placement=True,
+    #    allow_soft_placement=True,
     #    log_device_placement=True
     )
 
     saver = tf.train.Saver()
 
     with tf.Session(config=config) as sess:
+        train_writer = tf.summary.FileWriter(hyperparams.summary_path, sess.graph)
+
         restore_path = input('Restore path (leave blank for new training): ')
         if restore_path != '':
             saver.restore(sess, restore_path)
@@ -90,25 +92,30 @@ def train():
         else:
             sess.run(tf.global_variables_initializer())
 
+        # Handle to pass when doing validation runs
         validation_handle = sess.run(validation_iter_handle_op)
 
         while True:
             # Evaluate validation data
-            validation_loss, iteration = sess.run(
-                [tacotron.loss, tacotron.global_step],
+            summary, iteration, total_length = sess.run(
+                [tacotron.validation_summary, tacotron.global_step, tacotron.total_length],
                 {handle_ph: validation_handle})
-            print("Validation loss:", validation_loss)
+            train_writer.add_summary(summary, iteration)
+            print('Processed {} hours of data.'.format(total_length / 3600))
 
             save_path = saver.save(sess, hyperparams.save_path, iteration)
             print('Saved to', save_path)
 
-            # Run training for some steps
+            # Train for some steps
             for _ in range(hyperparams.validate_every_n_steps):
-                start_time = time.time()
-                _, loss, total_length = sess.run(
-                    [tacotron.optimize, tacotron.loss, tacotron.total_length])
-                print("loss: {} for {} hours of data".format(loss, total_length / 3600))
-                print((time.time() - start_time) / hyperparams.batch_size, "seconds per data point")
+                #start_time = time.time()
+                summary, _, iteration, loss = sess.run(
+                    [tacotron.training_summary, tacotron.optimize, tacotron.global_step, tacotron.loss])
+                train_writer.add_summary(summary, iteration)
+
+                if iteration % 10 == 0:
+                    print("{}: {}".format(iteration, loss))
+                #print((time.time() - start_time) / hyperparams.batch_size, "seconds per data point")
 
 if __name__ == "__main__":
     train()

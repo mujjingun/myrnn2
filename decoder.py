@@ -18,7 +18,7 @@ class Decoder:
                 hyperparams.dropout_prob)
 
         attention_mechanism = tf.contrib.seq2seq.BahdanauMonotonicAttention(
-                hyperparams.attention_size, encoder_outputs)
+                hyperparams.attention_size, encoder_outputs, normalize=True)
 
         attention_cell = tf.contrib.seq2seq.AttentionWrapper(
                 dec_prenet,
@@ -65,8 +65,8 @@ class Decoder:
                 tf.reshape(gru_outputs, (-1, hyperparams.dec_rnn_size)),
                 decoder_proj_weights)
 
-            # Grab alignments
-            self.alignments = states[0].alignment_history.stack()
+            # Grab alignments (N, T_out, T_in)
+            self.alignments = tf.transpose(states[0].alignment_history.stack(), (1, 0, 2))
 
         else:
             # Synthesis model for inference
@@ -78,7 +78,7 @@ class Decoder:
 
             decoder_init_state = decoder_cell.zero_state(batch_size=batch_size, dtype=tf.float32)
 
-            (decoder_outputs, _), self.final_decoder_state, _ = \
+            (decoder_outputs, _), self.final_state, _ = \
                     tf.contrib.seq2seq.dynamic_decode(
                             tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper, decoder_init_state),
                             maximum_iterations=hyperparams.max_iters,
@@ -86,7 +86,7 @@ class Decoder:
                             scope='rnn')
 
             # Grab alignments from the final decoder state:
-            self.alignments = self.final_decoder_state[0].alignment_history.stack()
+            self.alignments = tf.transpose(self.final_state[0].alignment_history.stack(), (1, 0, 2))
 
         # [N, T_out, M]
         self.mel_outputs = tf.reshape(decoder_outputs, [batch_size, -1, hyperparams.num_mels])

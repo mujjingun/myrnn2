@@ -2,6 +2,7 @@ import tensorflow as tf
 import model
 import audio
 from hyperparams import hyperparams
+import matplotlib.pyplot as plt
 
 def synth():
     tokens_ph = tf.placeholder(tf.int32, [None], "tokens_ph")
@@ -28,6 +29,8 @@ def synth():
             sentence = input('Input: ')
             tokens = ["? abcdefghijklmnopqrstuvwxyz".index(ch) for ch in sentence] + [0]
             spectrum = sess.run(spectrum_op, {tokens_ph: tokens})
+            plt.imshow(spectrum[0])
+            plt.show()
             signal = audio.reconstruct(hyperparams, spectrum[0])
             audio.write_audio(sentence + ".wav", signal, hyperparams.sample_rate)
 

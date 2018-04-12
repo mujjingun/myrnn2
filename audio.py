@@ -4,29 +4,30 @@ import librosa
 import scipy
 
 def spectrogram(hyperparams, audio):
-    # TODO: Truncate slient samples
-    
+    # Truncate excessively long samples
+    audio = audio[:hyperparams.max_audio_length]
+
     # Emphasize high-frequency
     preemp = preemphasis(audio, hyperparams.preemphasis)
-    
+
     # Obtain STFT spectra
     n_fft, hop_length, win_length = get_stft_params(hyperparams)
     spectra = stft(preemp, n_fft, hop_length, win_length)
     mag = tf.abs(spectra)
-    
+
     # Pad to 4-frame boundary
     r = hyperparams.reduction_factor
     r = r - tf.shape(mag)[0] % r
     mag = tf.pad(mag, [[0, r], [0, 0]])
-    
+
     # Linear spectrum
     linear = amp_to_db(mag) - hyperparams.ref_level_db
     linear = normalize(linear, hyperparams.min_level_db)
-    
+
     # Mel spectrum
     mel = amp_to_db(linear_to_mel(mag, n_fft, hyperparams.sample_rate, hyperparams.num_mels))
     mel = normalize(mel, hyperparams.min_level_db)
-    
+
     return mel, linear
 
 mel_basis = None
@@ -43,7 +44,7 @@ def build_mel_basis(n_fft, sample_rate, num_mels):
 
 def normalize(x, min_level):
     return tf.clip_by_value((x - min_level) / -min_level, 0, 1)
-    
+
 def amp_to_db(x):
     return 20 * tf.log(tf.maximum(1e-5, x)) / 2.302585
 
@@ -52,10 +53,10 @@ def get_stft_params(hyperparams):
     hop_length = int(hyperparams.frame_shift_ms / 1000 * hyperparams.sample_rate)
     win_length = int(hyperparams.frame_length_ms / 1000 * hyperparams.sample_rate)
     return n_fft, hop_length, win_length
-    
+
 def stft(x, n_fft, hop_length, win_length):
     return tf.contrib.signal.stft(
-        x, 
+        x,
         frame_length=win_length,
         frame_step=hop_length,
         fft_length=n_fft,
@@ -69,26 +70,26 @@ def preemphasis(x, coeff):
 
 def reconstruct(hyperparams, spectrogram):
     n_fft, hop_length, win_length = get_stft_params(hyperparams)
-    
+
     def stft(y):
         return librosa.stft(y=y, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
-    
+
     def istft(y):
         return librosa.istft(y, hop_length=hop_length, win_length=win_length)
-    
+
     def db_to_amp(x):
         return np.power(10.0, x * 0.05)
-    
+
     def inv_preemphasis(x):
         return scipy.signal.lfilter([1], [1, -hyperparams.preemphasis], x)
-    
+
     def denormalize(S):
         return (np.clip(S, 0, 1) * -hyperparams.min_level_db) + hyperparams.min_level_db
 
     # Convert back to linear
-    S = db_to_amp(denormalize(spectrogram) + hyperparams.ref_level_db) 
+    S = db_to_amp(denormalize(spectrogram) + hyperparams.ref_level_db)
     S = S ** hyperparams.power
-    
+
     # Reconstruct phase (Griffin-Lim reconstruction)
     S = S.transpose()
     angles = np.exp(2j * np.pi * np.random.rand(*S.shape))
@@ -98,7 +99,7 @@ def reconstruct(hyperparams, spectrogram):
     for i in range(hyperparams.griffin_lim_iters):
         angles = np.exp(1j * np.angle(stft(y)))
         y = istft(S_complex * angles)
-    
+
     # unapply preemphasis
     return inv_preemphasis(y)
 
