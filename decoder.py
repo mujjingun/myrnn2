@@ -61,7 +61,8 @@ class Decoder:
                 decoder_cell,
                 pre_padded_mel,
                 dtype=tf.float32,
-                swap_memory=True)
+                swap_memory=True,
+                scope='rnn')
 
             decoder_outputs = tf.matmul(
                 tf.reshape(gru_outputs, (-1, hyperparams.dec_rnn_size)),
