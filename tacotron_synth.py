@@ -17,6 +17,7 @@ def synth():
         inputs=tokens_op,
         input_lengths=token_lengths)
 
+    melspectrum_op = tacotron.decoder.mel_outputs
     spectrum_op = tacotron.decoder.linear_outputs
 
     saver = tf.train.Saver()
@@ -29,10 +30,12 @@ def synth():
         while True:
             sentence = input('Input: ')
             tokens = text.encode(sentence)
-            spectrum = sess.run(spectrum_op, {tokens_ph: tokens})
+            melspectrum, spectrum = sess.run([melspectrum_op, spectrum_op], {tokens_ph: tokens})
+            plt.imshow(melspectrum[0])
+            plt.show()
             plt.imshow(spectrum[0])
             plt.show()
-            signal = audio.reconstruct(hyperparams, spectrum[0].T)
+            signal = audio.reconstruct(hyperparams, melspectrum[0].T, from_mel=True)
             audio.write_audio(sentence + ".wav", signal, hyperparams.sample_rate)
 
 if __name__ == '__main__':
