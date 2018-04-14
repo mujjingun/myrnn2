@@ -91,11 +91,9 @@ def train():
 
         while True:
             # Evaluate validation data
-            summary, iteration, total_length, alignments = sess.run(
-                [tacotron.validation_summary, tacotron.global_step, tacotron.total_length, tacotron.decoder.alignments],
+            summary, iteration, total_length = sess.run(
+                [tacotron.validation_summary, tacotron.global_step, tacotron.total_length],
                 {handle_ph: validation_handle})
-
-            print(np.sum(alignments[0], axis=1))
 
             train_writer.add_summary(summary, iteration)
             print('Processed {} hours of data.'.format(total_length / 3600))

@@ -19,6 +19,7 @@ def synth():
 
     melspectrum_op = tacotron.decoder.mel_outputs
     spectrum_op = tacotron.decoder.linear_outputs
+    alignments_op = tacotron.decoder.alignments
 
     saver = tf.train.Saver()
 
@@ -29,11 +30,16 @@ def synth():
 
         while True:
             sentence = input('Input: ')
+            if sentence == '':
+                sentence = "In the beginning God created the heavens and the earth."
             tokens = text.encode(sentence)
-            melspectrum, spectrum = sess.run([melspectrum_op, spectrum_op], {tokens_ph: tokens})
+            melspectrum, spectrum, alignments = sess.run([melspectrum_op, spectrum_op, alignments_op], {tokens_ph: tokens})
+            plt.figure()
             plt.imshow(melspectrum[0])
-            plt.show()
+            plt.figure()
             plt.imshow(spectrum[0])
+            plt.figure()
+            plt.imshow(alignments[0])
             plt.show()
             signal = audio.reconstruct(hyperparams, melspectrum[0].T, from_mel=True)
             audio.write_audio(sentence + ".wav", signal, hyperparams.sample_rate)

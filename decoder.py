@@ -17,10 +17,9 @@ class Decoder:
                 hyperparams.dec_prenet_sizes,
                 hyperparams.dropout_prob)
 
-        attention_mechanism = tf.contrib.seq2seq.BahdanauMonotonicAttention(
+        attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
                 hyperparams.attention_size, encoder_outputs,
-                normalize=True,
-                score_bias_init=4.)
+                normalize=True)
 
         attention_cell = tf.contrib.seq2seq.AttentionWrapper(
                 dec_prenet,
