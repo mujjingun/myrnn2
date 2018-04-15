@@ -42,7 +42,7 @@ def synth():
             plt.figure()
             plt.imshow(alignments[0])
             plt.show()
-            signal = audio.reconstruct(hyperparams, melspectrum[0].T, from_mel=True)
+            signal = audio.reconstruct(hyperparams, spectrum[0].T)
             audio.write_audio(sentence + ".wav", signal, hyperparams.sample_rate)
 
 if __name__ == '__main__':
