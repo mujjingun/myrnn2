@@ -156,12 +156,33 @@ class ConcatOutputAndAttentionWrapper(tf.contrib.rnn.RNNCell):
         return self._cell.zero_state(batch_size, dtype)
 
 
+class OutputProjectionWrapper(tf.contrib.rnn.RNNCell):
+    def __init__(self, cell, proj_mat):
+        super(OutputProjectionWrapper, self).__init__()
+        self._cell = cell
+        self._proj_mat = proj_mat
+
+    @property
+    def state_size(self):
+        return self._cell.state_size
+
+    @property
+    def output_size(self):
+        return self._cell.output_size
+
+    def __call__(self, inputs, state):
+        output, res_state = self._cell(inputs, state)
+        return tf.matmul(output, self._proj_mat), res_state
+
+    def zero_state(self, batch_size, dtype):
+        return self._cell.zero_state(batch_size, dtype)
+
+
 # Adapted from tf.contrib.seq2seq.GreedyEmbeddingHelper
 class TacoTestHelper(tf.contrib.seq2seq.Helper):
-    def __init__(self, batch_size, decoder_proj_weights, output_dim, r):
+    def __init__(self, batch_size, output_dim, r):
         with tf.name_scope('TacoTestHelper'):
             self._batch_size = batch_size
-            self._decoder_proj_weights = decoder_proj_weights
             self._output_dim = output_dim
             self._end_token = tf.zeros([output_dim * r])
             self._reduction_factor = r
@@ -187,13 +208,11 @@ class TacoTestHelper(tf.contrib.seq2seq.Helper):
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         '''Stop on EOS. Otherwise, pass the last output as the next input and pass through state.'''
         with tf.name_scope('TacoTestHelper'):
-            outputs = tf.matmul(outputs, self._decoder_proj_weights)
-            #outputs = tf.Print(outputs, [outputs])
             finished = tf.reduce_all(tf.equal(outputs, self._end_token), axis=1)
-            outputs = tf.reshape(outputs, (-1, self._output_dim, self._reduction_factor))
+            outputs = tf.reshape(outputs, (-1, self._reduction_factor, self._output_dim))
 
-            # Feed last output frame as next input. outputs is [N, output_dim, r]
-            next_inputs = outputs[:, :, -1]
+            # Feed last output frame as next input. outputs is [N, r, output_dim(num_mels)]
+            next_inputs = outputs[:, -1, :]
             return (finished, next_inputs, state)
 
 def go_frames(batch_size, output_dim):

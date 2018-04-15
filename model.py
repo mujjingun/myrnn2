@@ -64,8 +64,7 @@ class Model:
                     tf.summary.scalar("total_loss", self.loss),
                     tf.summary.scalar("mel_loss", self.mel_loss),
                     tf.summary.scalar("linear_loss", self.linear_loss),
-                    tf.summary.scalar("total_length_hours", self.total_length / 3600),
-                    tf.summary.image("alignment_matrix", tf.expand_dims(self.decoder.alignments, 3))
+                    tf.summary.scalar("total_length_hours", self.total_length / 3600)
                 ])
 
                 self.validation_summary = tf.summary.merge([

@@ -71,18 +71,19 @@ class Decoder:
             self.alignments = tf.transpose(states[0].alignment_history.stack(), (1, 0, 2))
 
         else:
+            proj_decoder_cell = modules.OutputProjectionWrapper(decoder_cell, decoder_proj_weights)
+
             # Synthesis model for inference
             helper = modules.TacoTestHelper(
                     batch_size,
-                    decoder_proj_weights,
                     hyperparams.num_mels,
                     hyperparams.reduction_factor)
 
-            decoder_init_state = decoder_cell.zero_state(batch_size=batch_size, dtype=tf.float32)
+            decoder_init_state = proj_decoder_cell.zero_state(batch_size=batch_size, dtype=tf.float32)
 
             (decoder_outputs, _), self.final_state, _ = \
                     tf.contrib.seq2seq.dynamic_decode(
-                            tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper, decoder_init_state),
+                            tf.contrib.seq2seq.BasicDecoder(proj_decoder_cell, helper, decoder_init_state),
                             maximum_iterations=hyperparams.max_iters,
                             swap_memory=True,
                             scope='rnn')
